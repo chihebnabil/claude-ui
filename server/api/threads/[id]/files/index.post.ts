@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { parseFile } from "~/server/utils/fileParser";
 import db from "~/server/utils/db";
-import { files } from "~/server/database/schema";
+import { files, threads } from "~/server/database/schema";
+import { eq } from "drizzle-orm";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -12,7 +13,7 @@ export default defineEventHandler(async (event) => {
     const { anthropicKey } = useRuntimeConfig();
 
     if (!anthropicKey || anthropicKey === "your_anthropic_api_key_here") {
-      throw createError({
+      return createError({
         statusCode: 500,
         message:
           "Anthropic API key is not configured. Please set the ANTHROPIC_KEY environment variable.",
@@ -27,15 +28,24 @@ export default defineEventHandler(async (event) => {
     // Get thread ID from URL parameters
     const threadId = event.context.params.id;
 
+    // Get the thread to access its model
+    const [thread] = await db.select().from(threads).where(eq(threads.id, threadId));
+    if (!thread) {
+      return createError({
+        statusCode: 404,
+        message: "Thread not found",
+      });
+    }
+
     const formData = await readMultipartFormData(event);
 
     for (const field of formData) {
       if (!field.data || !field.filename) continue;
 
-      const text = await parseFile(field.filename, field.data, field.type);
+      const text = await parseFile(field.filename, field.data, field.type, thread.model);
 
       const tokens = await anthropic.beta.messages.countTokens({
-        model: "claude-3-5-sonnet-20241022",
+        model: thread.model,
         messages: [
           {
             role: "user",

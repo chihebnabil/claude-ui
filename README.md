@@ -30,7 +30,7 @@ A modern chat interface for Anthropic's Claude AI models built with Nuxt.js. Exp
 - 💾 Database integration with [Drizzle ORM](https://orm.drizzle.team/)
 - 🎨 UI components from [@nuxt/ui](https://ui.nuxt.com/)
 - 🤖 AI integration with [@anthropic-ai/sdk](https://www.anthropic.com/)
-- 📝 Text extraction capabilities with [@nosferatu500/textract](https://www.npmjs.com/package/@nosferatu500/textract)
+- 📝 Advanced text extraction using Claude API for PDFs, images, and documents
 - ✨ Markdown support with [markdown-it](https://github.com/markdown-it/markdown-it)
 - 🎯 Code highlighting with [highlight.js](https://highlightjs.org/)
 
@@ -69,14 +69,14 @@ DATABASE_URL=./database.db
 4. Create a new API key
 5. Copy the key and paste it in your `.env` file
 
-## Parsing PDFs
+## File Processing
 
-Ensure `poppler-utils` is part of your environment by installing it:
+The application now uses Claude API for advanced text extraction from various file types including:
+- PDFs, Word documents, Excel sheets, PowerPoint presentations  
+- Images (PNG, JPEG, GIF, WebP, BMP, TIFF) with OCR capabilities
+- Plain text files (TXT, Markdown, JSON, etc.)
 
-```bash
-sudo apt update
-sudo apt install poppler-utils
-```
+No additional system dependencies are required - everything is handled through the Claude API.
 
 ## ENV
 

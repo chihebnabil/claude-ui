@@ -9,6 +9,8 @@
         <FileAttachments
           v-if="attachedFiles.length > 0"
           :files="attachedFiles"
+          :processing-file-name="processingFileName"
+          :processing-message="processingMessage"
           class="mb-3"
           @remove="removeFile"
         />
@@ -54,6 +56,7 @@
             />
           </div>
 
+
           <!-- Input hints -->
           <div
             class="flex items-center justify-between mt-2 text-xs text-gray-500 dark:text-gray-400"
@@ -83,7 +86,7 @@
         <input
           ref="fileInput"
           type="file"
-          accept=".html,.ts,.htm,.atom,.rss,.md,.markdown,.epub,.xml,.xsl,.pdf,.doc,.docx,.odt,.ott,.rtf,.xls,.xlsx,.xlsb,.xlsm,.xltx,.csv,.ods,.ots,.pptx,.potx,.odp,.otp,.odg,.otg,.png,.jpg,.jpeg,.gif,.dxf,.js,text/*"
+          accept=".txt,.js,.ts,.json,.html,.htm,.md,.markdown,.xml,.csv,.css,.scss,.less,.yaml,.yml,.toml,.ini,.conf,.log,.pdf,.doc,.docx,.xls,.xlsx,.pptx,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff,text/*"
           multiple
           class="hidden"
           @change="handleFileSelect"
@@ -112,6 +115,8 @@ const emit = defineEmits(["update:attachedFiles", "send-message"]);
 
 const inputMessage = ref("");
 const fileInput = ref(null);
+const processingFileName = ref("");
+const processingMessage = ref("");
 
 // Quick suggestion prompts
 const quickSuggestions = ref([
@@ -146,16 +151,47 @@ const handleFileSelect = async (event) => {
   loader.value = true;
 
   try {
-    for (const file of files) {
-      // Check file size (limit to 10MB)
-      if (file.size > 10 * 1024 * 1024) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      // Check file size (limit to 32MB to match Claude API limits)
+      if (file.size > 32 * 1024 * 1024) {
         toast.add({
           title: "File too large",
-          description: `${file.name} is larger than 10MB`,
+          description: `${file.name} is larger than 32MB (Claude API limit)`,
           color: "red",
           icon: "i-heroicons-exclamation-triangle",
         });
         continue;
+      }
+
+      // Create file entry immediately to show in UI
+      const newFile = {
+        file,
+        name: file.name,
+        selected: true,
+        tokens: 0, // Will be updated after processing
+        id: `temp-${Date.now()}-${Math.random()}`, // Temporary ID
+        isProcessing: true,
+      };
+
+      // Add file to UI immediately
+      emit("update:attachedFiles", [...props.attachedFiles, newFile]);
+
+      // Set which file is currently being processed
+      processingFileName.value = file.name;
+
+      // Update processing message based on file type
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const isImage = file.type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff'].includes(fileExt);
+      const isDocument = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'pptx'].includes(fileExt);
+      
+      if (isImage) {
+        processingMessage.value = `Extracting text using OCR...`;
+      } else if (isDocument) {
+        processingMessage.value = `Processing document and extracting text content...`;
+      } else {
+        processingMessage.value = `Processing with Claude API...`;
       }
 
       const formData = new FormData();
@@ -166,39 +202,60 @@ const handleFileSelect = async (event) => {
         body: formData,
       });
 
-      const newFile = {
+      // Update the file with real data from server
+      const updatedFile = {
         file,
         name: file.name,
         selected: true,
         tokens: fileReq.file.tokens,
         id: fileReq.last_row_id,
+        isProcessing: false,
       };
 
-      emit("update:attachedFiles", [...props.attachedFiles, newFile]);
+      // Update the file in the array
+      const updatedFiles = props.attachedFiles.map(f => 
+        f.name === file.name && f.isProcessing ? updatedFile : f
+      );
+      
+      emit("update:attachedFiles", updatedFiles);
 
+      // Success toast with more specific messaging
+      const processType = isImage ? "OCR processed" : isDocument ? "Text extracted" : "Processed";
       toast.add({
-        title: "File uploaded",
-        description: `${file.name} has been processed`,
+        title: "File ready",
+        description: `${file.name} - ${processType} with Claude API (${fileReq.file.tokens} tokens)`,
         color: "green",
-        icon: "i-heroicons-document-check",
+        icon: "i-heroicons-sparkles",
       });
     }
   } catch (error) {
     console.error("Error uploading files:", error);
+    const errorMessage = error.data?.message || error.message || "Could not process files with Claude API";
+    
+    // Remove the failed file from the UI
+    const failedFileName = processingFileName.value;
+    if (failedFileName) {
+      const filteredFiles = props.attachedFiles.filter(f => 
+        !(f.name === failedFileName && f.isProcessing)
+      );
+      emit("update:attachedFiles", filteredFiles);
+    }
+    
     toast.add({
-      title: "Upload failed",
-      description: "Could not upload one or more files",
+      title: "Processing failed",
+      description: errorMessage,
       color: "red",
       icon: "i-heroicons-exclamation-triangle",
     });
   } finally {
     fileInput.value.value = ""; // Reset file input
     loader.value = false;
+    processingFileName.value = "";
+    processingMessage.value = "";
   }
 };
 
 const removeFile = async (fileToRemove) => {
-  loader.value = true;
   try {
     await $fetch(`/api/files/${fileToRemove.id}`, {
       method: "DELETE",
@@ -222,8 +279,6 @@ const removeFile = async (fileToRemove) => {
       color: "red",
       icon: "i-heroicons-exclamation-triangle",
     });
-  } finally {
-    loader.value = false;
   }
 };
 

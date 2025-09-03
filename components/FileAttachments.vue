@@ -24,7 +24,7 @@
         ]"
       >
         <div class="flex items-start gap-3">
-          <UCheckbox v-model="file.selected" size="sm" class="mt-0.5" />
+          <UCheckbox v-model="file.selected" class="mt-0.5" />
 
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
@@ -52,11 +52,20 @@
                 {{ getFileSize(file.file?.size) }}
               </span>
             </div>
+
+            <!-- Processing indicator for this specific file -->
+            <div
+              v-if="processingFileName === file.name && processingMessage"
+              class="flex items-center gap-2 mt-2 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 rounded-lg px-2 py-1"
+            >
+              <UIcon name="i-heroicons-sparkles" class="w-3 h-3 animate-pulse" />
+              <span>{{ processingMessage }}</span>
+            </div>
           </div>
 
-          <!-- Remove button -->
+          <!-- Remove button or processing spinner -->
           <UButton
-            :loading="loader"
+            v-if="processingFileName !== file.name || !processingMessage"
             size="xs"
             color="gray"
             variant="ghost"
@@ -64,6 +73,12 @@
             class="opacity-0 group-hover:opacity-100 transition-opacity"
             @click="handleRemoveFile(file)"
           />
+          <div
+            v-else
+            class="flex items-center justify-center w-6 h-6"
+          >
+            <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin text-primary-500" />
+          </div>
         </div>
       </div>
     </div>
@@ -88,16 +103,22 @@
 <script setup>
 import { computed } from "vue";
 
-const { loader } = useLoader();
-
 const props = defineProps({
   files: {
     type: Array,
     required: true,
   },
+  processingFileName: {
+    type: String,
+    default: "",
+  },
+  processingMessage: {
+    type: String,
+    default: "",
+  },
 });
 
-const emit = defineEmits(["remove-file"]);
+const emit = defineEmits(["remove"]);
 
 const selectedCount = computed(() => {
   return props.files.filter((file) => file.selected).length;
@@ -149,6 +170,6 @@ const getFileSize = (bytes) => {
 };
 
 const handleRemoveFile = (file) => {
-  emit("remove-file", file);
+  emit("remove", file);
 };
 </script>

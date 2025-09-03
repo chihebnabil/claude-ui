@@ -1,110 +1,197 @@
-import textract from "@nosferatu500/textract";
-import { promisify } from "util";
+import Anthropic from "@anthropic-ai/sdk";
 
-const textractFromBuffer = promisify(textract.fromBufferWithName);
-
-const TEXT_EXTENSIONS = new Set([
+// Plain text files that can be read directly without Claude API
+const PLAIN_TEXT_EXTENSIONS = new Set([
   "txt",
   "js",
   "ts",
   "json",
   "html",
   "htm",
-  "atom",
-  "rss",
   "md",
   "markdown",
-  "epub",
   "xml",
-  "xsl",
+  "csv",
+  "css",
+  "scss",
+  "less",
+  "yaml",
+  "yml",
+  "toml",
+  "ini",
+  "conf",
+  "log",
+]);
+
+// File types that Claude API can process for text extraction
+const CLAUDE_SUPPORTED_EXTENSIONS = new Set([
   "pdf",
   "doc",
   "docx",
-  "odt",
-  "ott",
-  "rtf",
   "xls",
   "xlsx",
-  "xlsb",
-  "xlsm",
-  "xltx",
-  "csv",
-  "ods",
-  "ots",
   "pptx",
-  "potx",
-  "odp",
-  "otp",
-  "odg",
-  "otg",
   "png",
   "jpg",
   "jpeg",
   "gif",
-  "dxf",
+  "webp",
+  "bmp",
+  "tiff",
 ]);
 
-const TEXT_MIMETYPES = new Set([
-  "text/html",
-  "text/htm",
-  "application/atom+xml",
-  "application/rss+xml",
-  "text/markdown",
-  "application/epub+zip",
-  "application/xml",
-  "text/xml",
+const CLAUDE_SUPPORTED_MIMETYPES = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.oasis.opendocument.text",
-  "application/rtf",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/csv",
-  "application/vnd.oasis.opendocument.spreadsheet",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.oasis.opendocument.presentation",
-  "application/vnd.oasis.opendocument.graphics",
   "image/png",
   "image/jpeg",
   "image/gif",
-  "application/dxf",
-  "application/javascript",
+  "image/webp",
+  "image/bmp",
+  "image/tiff",
 ]);
 
 export async function parseFile(
   filename: string,
   buffer: Buffer,
   mimeType?: string,
+  model: string,
 ): Promise<string> {
   try {
     const ext = filename.split(".").pop()?.toLowerCase();
 
-    // Use buffer.toString() for plain text files and specific cases
+    // Handle plain text files directly
     if (
       mimeType?.startsWith("text/") ||
       mimeType === "application/json" ||
       mimeType === "application/javascript" ||
-      ext === "ts" ||
-      ext === "js" ||
-      ext === "json"
+      (ext && PLAIN_TEXT_EXTENSIONS.has(ext))
     ) {
-      return buffer.toString();
+      return buffer.toString("utf-8");
     }
 
-    // Use textract for supported file types
+    // Use Claude API for supported file types
     if (
-      TEXT_EXTENSIONS.has(ext) ||
-      (mimeType && TEXT_MIMETYPES.has(mimeType))
+      (ext && CLAUDE_SUPPORTED_EXTENSIONS.has(ext)) ||
+      (mimeType && CLAUDE_SUPPORTED_MIMETYPES.has(mimeType))
     ) {
-      const text = await textractFromBuffer(filename, buffer);
-      return text;
+      return await extractTextWithClaude(filename, buffer, mimeType, model);
     }
 
-    // Default to buffer.toString() if no specific handling is defined
-    return buffer.toString();
+    // Fallback to plain text for unsupported types
+    return buffer.toString("utf-8");
   } catch (error) {
     console.error("Error parsing file:", error);
     throw new Error(`Failed to parse file: ${error.message}`);
+  }
+}
+
+// Cache for storing Claude API instances to avoid recreating them
+const claudeInstanceCache = new Map<string, Anthropic>();
+
+function getClaudeInstance(apiKey: string): Anthropic {
+  if (!claudeInstanceCache.has(apiKey)) {
+    claudeInstanceCache.set(apiKey, new Anthropic({ apiKey }));
+  }
+  return claudeInstanceCache.get(apiKey)!;
+}
+
+async function extractTextWithClaude(
+  filename: string,
+  buffer: Buffer,
+  mimeType?: string,
+  model: string,
+): Promise<string> {
+  // Get the API key from runtime config
+  const { anthropicKey } = useRuntimeConfig();
+  // Validate file size (Claude has limits)
+  const maxFileSize = 32 * 1024 * 1024; // 32MB limit
+  if (buffer.length > maxFileSize) {
+    throw new Error(`File too large: ${Math.round(buffer.length / (1024 * 1024))}MB. Maximum size is 32MB.`);
+  }
+
+  const anthropic = getClaudeInstance(anthropicKey);
+
+  // Determine if this is an image file
+  const isImage = mimeType?.startsWith("image/") || 
+    /\.(png|jpe?g|gif|webp|bmp|tiff)$/i.test(filename);
+
+  const base64Data = buffer.toString("base64");
+  
+  // Optimize prompts for better text extraction
+  const content = isImage 
+    ? [
+        {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: mimeType || "image/jpeg",
+            data: base64Data,
+          },
+        },
+        {
+          type: "text" as const,
+          text: "Please extract all text content from this image using OCR. If the image contains structured data (like tables), preserve the structure. If no text is found, respond with 'No readable text detected in image'.",
+        },
+      ]
+    : [
+        {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: mimeType || "application/pdf",
+            data: base64Data,
+          },
+        },
+        {
+          type: "text" as const,
+          text: "Extract all text content from this document. Maintain original formatting, paragraph structure, bullet points, tables, and any other structural elements. Provide clean, readable text while preserving the document's organization.",
+        },
+      ];
+
+  try {
+    const response = await anthropic.messages.create({
+      model: model,
+      max_tokens: 8192, // Increased for larger documents
+      temperature: 0, // Deterministic for text extraction
+      messages: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.type === "text" ? block.text : "")
+      .join("\n")
+      .trim();
+
+    if (!textContent || textContent === "No readable text detected in image" || textContent === "No text content extracted") {
+      return `[${filename}]: No extractable text content found`;
+    }
+
+    return textContent;
+  } catch (error: unknown) {
+    console.error(`Error extracting text from ${filename}:`, error);
+    
+    // Provide more specific error messages
+    const errorObj = error as { status?: number; message?: string };
+    if (errorObj.status === 400) {
+      throw new Error(`Invalid file format or content for ${filename}. Please check the file is not corrupted.`);
+    } else if (errorObj.status === 413) {
+      throw new Error(`File ${filename} is too large for processing. Maximum size is 32MB.`);
+    } else if (errorObj.status === 429) {
+      throw new Error("Rate limit exceeded. Please wait a moment before uploading more files.");
+    } else if (errorObj.status && errorObj.status >= 500) {
+      throw new Error("Claude API is temporarily unavailable. Please try again later.");
+    }
+    
+    throw new Error(`Failed to extract text from ${filename}: ${errorObj.message || 'Unknown error'}`);
   }
 }
