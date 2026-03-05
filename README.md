@@ -38,8 +38,6 @@ The production-ready Next.js version built for organizations.
 - **Priority support** – Direct email/Slack support
 - **Managed deployment** – We deploy to your VPC in 48 hours
 
-**Pricing:** $499 one-time license (unlimited internal users)  
-**DFY Setup:** $899 – We handle deployment, SSO config, and training
 
 **[Email hi@remoteskills.io for enterprise license →](mailto:hi@remoteskills.io?subject=Claude%20UI%20Enterprise%20Inquiry)**
 
