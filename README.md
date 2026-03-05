@@ -1,12 +1,57 @@
 # Claude UI
 
-A modern chat interface for Anthropic's Claude AI models built with Nuxt.js. Experience seamless conversations with Claude in a clean user interface.
+**Self-hosted Claude interface for enterprises.** Run Anthropic's Claude on your infrastructure with your API keys—no rate limits, no data leakage, full audit control.
 
-## Prerequisites
+[![GitHub stars](https://img.shields.io/github/stars/chihebnabil/claude-ui?style=social)](https://github.com/yourusername/claude-ui)
+[![License](https://img.shields.io/badge/license-AGPL-blue)](LICENSE)
+[![Enterprise](https://img.shields.io/badge/enterprise-available-green)](mailto:hi@remoteskills.io)
 
-- Node.js (v18 or higher)
-- npm or yarn
+## Why Claude UI?
+
+- **Escape Claude's 5-hour limits** – Your team works 8+ hours. Don't let Anthropic's rate limits block deployments.
+- **Zero data leakage** – Code, documents, and chat history stay on your servers (SOC 2 friendly).
+- **BYOK economics** – Bring your own Anthropic API key. No per-seat markup. Scale 50 users for the price of 1.
+- **Deploy anywhere** – Docker, Vercel, AWS, or on-premise.
+
+## Two Editions
+
+### Community Edition (Free)
+The open-source Nuxt.js version. Perfect for individual developers and small teams comfortable with self-hosting.
+
+**Features:**
+- Unlimited conversations (BYOK)
+- Local SQLite database
+- Markdown & code syntax highlighting
+- PDF/text extraction
+- Light/Dark mode
+
+[View Community Docs →](#community-setup)
+
+### Enterprise Edition (Licensed)
+The production-ready Next.js version built for organizations.
+
+**Additional Features:**
+- **SSO/SAML** (Google Workspace, Okta, Azure AD)
+- **Audit logging** – Full prompt/response history for compliance
+- **Multi-tenant workspaces** – Isolate teams by department
+- **Custom branding** – White-label with your logo
+- **Priority support** – Direct email/Slack support
+- **Managed deployment** – We deploy to your VPC in 48 hours
+
+**Pricing:** $499 one-time license (unlimited internal users)  
+**DFY Setup:** $899 – We handle deployment, SSO config, and training
+
+**[Email hi@remoteskills.io for enterprise license →](mailto:hi@remoteskills.io?subject=Claude%20UI%20Enterprise%20Inquiry)**
+
+---
+
+## Community Edition Setup
+**Tech Stack:** Nuxt 3, Drizzle ORM, SQLite, Tailwind CSS
+
+### Prerequisites
+- Node.js 18+
 - Anthropic API key
+- 1GB RAM minimum
 
 <p align="center">
   <img src="./public/ui.png" alt="Claude UI Screenshot">
@@ -128,8 +173,16 @@ npm run db:generate
 npm run db:migrate
 ```
 
-## Todo
+## Enterprise Deployment
+- For organizations requiring SSO, audit logs, and SLA support:
+- Email hi@remoteskills.io with your team size
+- Receive Docker Compose manifest + license key
+- Deploy to your infrastructure (AWS, GCP, Azure, or on-premise)
+- Configure SSO in 10 minutes
+- Typical deployment: 1-2 hours for IT teams, or we handle it for you with the DFY package.
 
-- [x] Add streaming support for long-running chats
-- [ ] Add server-side validation for form inputs
-- [x] Add user authentication
+## Data Privacy & Compliance
+Unlike cloud AI chat services:
+- No training data retention – Anthropic never sees your data (BYOK)
+- Self-hosted – Chat history stays in your database
+- Audit trails – Enterprise edition logs all access (GDPR/SOX ready)
